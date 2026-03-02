@@ -71,9 +71,6 @@ def apply_filters(df, user_filters):
     if user_filters.get('job_type'):
         filtered_df = filtered_df[filtered_df['job_type'] == user_filters['job_type']]
 
-    if user_filters.get('job_level'):
-        filtered_df = filtered_df[filtered_df['job_level'] == user_filters['job_level']]
-
     if user_filters.get('work_mode'):
         filtered_df = filtered_df[filtered_df['work_mode'] == user_filters['work_mode']]
 
@@ -92,7 +89,7 @@ def apply_filters(df, user_filters):
 
 def load_data():
     # Base directory of the project
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DATA_DIR = os.path.join(BASE_DIR, "data")
 
     # Load main job postings
