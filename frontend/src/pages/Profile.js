@@ -72,17 +72,25 @@ function Profile() {
     e.preventDefault();
 
     const data = new FormData();
-    data.append("email", email);
+    data.append("email", localStorage.getItem("email"));
 
-    Object.entries(formData).forEach(([key, value]) =>
-      data.append(key, value)
-    );
+    Object.entries(formData).forEach(([key, value]) => {
+      if (value && value.trim() !== "") {
+        data.append(key, value);
+      }
+    });
 
     if (resume) data.append("resume", resume);
     if (profilePic) data.append("profile_pic", profilePic);
 
     try {
-      const res = await api.post("/profile", data);
+      console.log([...data.entries()]);
+
+      const res = await api.post("/profile", data, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
 
       if (res.data.profile_pic) {
         const img = `http://127.0.0.1:5000/${res.data.profile_pic}`;

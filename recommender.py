@@ -1,8 +1,12 @@
 import pandas as pd
 import re
 import os
-from sklearn.feature_extraction.text import TfidfVectorizer
+import numpy as np
+from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+
+# Load model once (VERY IMPORTANT)
+model = SentenceTransformer('all-MiniLM-L6-v2')
 
 
 # --------------------------------------------------
@@ -20,23 +24,28 @@ def clean_text(text):
 
 
 # --------------------------------------------------
-# Internship Categorization
+# Improved Categorization
 # --------------------------------------------------
 
 def categorize_internship(title):
     title = title.lower()
-    if any(k in title for k in ['software', 'engineer', 'robot', 'hardware', 'technical']):
+
+    if any(k in title for k in [
+        'software', 'engineer', 'developer', 'frontend', 'backend',
+        'full stack', 'web', 'react', 'node', 'python', 'java',
+        'cloud', 'devops', 'aws'
+    ]):
         return 'Tech'
+
     elif any(k in title for k in ['data', 'ai', 'ml', 'analytics']):
         return 'AI/Data'
+
     elif any(k in title for k in ['finance', 'bank', 'investment']):
         return 'Finance'
+
     elif any(k in title for k in ['marketing', 'sales', 'media']):
         return 'Marketing'
-    elif any(k in title for k in ['management', 'operations', 'project']):
-        return 'Management'
-    elif any(k in title for k in ['nurse', 'medical', 'health']):
-        return 'Healthcare'
+
     else:
         return 'Other'
 
@@ -84,65 +93,74 @@ def apply_filters(df, user_filters):
 
 
 # --------------------------------------------------
-# Data Loading
+# Data Loading (FIXED + OPTIMIZED)
 # --------------------------------------------------
 
 def load_data():
-    # Base directory of the project
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DATA_DIR = os.path.join(BASE_DIR, "data")
 
-    # Load main job postings
+    # Load main dataset (limit size for speed)
     df = pd.read_csv(
         os.path.join(DATA_DIR, "linkedin_job_postings.csv"),
         nrows=50000
     )
 
-    # Identify internship roles
-    intern_mask = df['job_title'].str.contains(
-        r'\bintern(?:ship)?\b',
-        case=False,
-        na=False
-    )
-    df = df[intern_mask].copy()
+    # 🔥 REMOVED strict intern filter (IMPORTANT FIX)
 
-    # Categorize internships
+    # Categorization
     df['category'] = df['job_title'].apply(categorize_internship)
 
-    # Detect work mode
+    # Keep only relevant tech jobs (optional but recommended)
+    df = df[df['category'].isin(['Tech', 'AI/Data'])]
+
+    # Work mode
     df['work_mode'] = df['job_location'].apply(detect_work_mode)
 
-    # Load job summaries
+    # Load summaries
     summary_df = pd.read_csv(
         os.path.join(DATA_DIR, "job_summary.csv"),
         nrows=100000
     )
 
-    # Merge summaries
+    # Merge
     df = df.merge(summary_df, on='job_link', how='left')
 
-    # Clean summaries
-    df = df.dropna(subset=['job_summary']).copy()
+    # 🔥 FIX: don't drop rows
+    df['job_summary'] = df['job_summary'].fillna('')
+
+    # Clean text
     df['clean_summary'] = df['job_summary'].apply(clean_text)
 
+    # Combine text (VERY IMPORTANT)
+    df['text'] = df['job_title'] + " " + df['clean_summary']
+
+    # Reduce size for speed
+    sample_size = min(5000, len(df))
+    df = df.sample(n=sample_size, random_state=42)
+
+    # 🔥 Precompute embeddings (MAJOR SPEED BOOST)
+    embeddings = model.encode(df['text'].tolist(), show_progress_bar=True)
+    df['embedding'] = list(embeddings)
     return df
 
 
-
 # --------------------------------------------------
-# Ranking Logic (NLP + Boosts)
+# Ranking (Sentence Transformer Based)
 # --------------------------------------------------
 
 def rank_jobs_by_skills(df, user_skills, preferred_category=None):
+
     user_text = clean_text(user_skills)
-    user_skill_list = user_text.split()
 
-    tfidf = TfidfVectorizer(stop_words="english", max_features=300)
+    # Encode user input
+    user_embedding = model.encode([user_text])
 
-    job_vectors = tfidf.fit_transform(df["clean_summary"])
-    user_vector = tfidf.transform([user_text])
+    # Use precomputed embeddings
+    job_embeddings = list(df['embedding'])
 
-    similarity_scores = cosine_similarity(user_vector, job_vectors)[0]
+    # Similarity
+    similarity_scores = cosine_similarity(user_embedding, job_embeddings)[0]
 
     df = df.copy()
     df["similarity_score"] = similarity_scores
@@ -156,19 +174,16 @@ def rank_jobs_by_skills(df, user_skills, preferred_category=None):
         df["category_boost"] = 0.0
 
     # Title keyword boost
+    user_skill_list = user_text.split()
+
     def title_boost(title):
-        title = title.lower()
-        return sum(1 for skill in user_skill_list if skill in title) * 0.15
+        return sum(1 for skill in user_skill_list if skill in title.lower()) * 0.15
 
     df["title_boost"] = df["job_title"].apply(title_boost)
 
-    # Base score
-    df["base_score"] = 0.05
-
     # Final score
     df["final_score"] = (
-        df["base_score"]
-        + df["similarity_score"]
+        df["similarity_score"]
         + df["category_boost"]
         + df["title_boost"]
     )

@@ -2,14 +2,28 @@ import { Link, useNavigate } from "react-router-dom";
 import { useContext } from "react";
 import { ThemeContext } from "../pages/ThemeToggle";
 import { ProfileContext } from "../pages/ProfileContext";
+import api from "../services/api";
+import { useEffect } from "react";
 
 function Navbar() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
 
-  const { theme, toggleTheme } = useContext(ThemeContext);
-  const { profilePic } = useContext(ProfileContext);   
+  const { theme, toggleTheme } = useContext(ThemeContext);  
+  const { profilePic, setProfilePic } = useContext(ProfileContext);
+  const email = localStorage.getItem("email");
+   useEffect(() => {
+    if (!email) return;
 
+    api.get(`/profile/${email}`)
+      .then((res) => {
+        if (res.data.profile_pic) {
+          const img = `http://127.0.0.1:5000/${res.data.profile_pic}`;
+          setProfilePic(img);
+        }
+      })
+      .catch(() => console.log("Error loading profile pic"));
+  }, [email, setProfilePic]);
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("profilePic");
@@ -76,7 +90,7 @@ function Navbar() {
                   height="38"
                   className="rounded-circle border"
                   style={{ cursor: "pointer", objectFit: "cover" }}
-                  onClick={() => navigate("/profile")}
+                  onClick={() => navigate("/profile/view")}
                 />
               </li>
 

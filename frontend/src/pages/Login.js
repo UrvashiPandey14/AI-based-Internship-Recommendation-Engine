@@ -21,7 +21,11 @@ function Login() {
 
     try {
       const res = await loginUser(formData);
+      console.log("LOGIN SUCCESS"); 
+      console.log(formData.email);  
       localStorage.setItem("token", res.data.token);
+      localStorage.setItem("email", formData.email);
+      console.log("Saved Email:", localStorage.getItem("email"));
       navigate("/dashboard");
     } catch (err) {
       alert("Invalid credentials");
