@@ -138,6 +138,13 @@ def save_profile():
     skills = request.form.get("skills")
     interests = request.form.get("interests")
 
+    print("EMAIL:", email)
+    print("NAME:", name)
+    print("COLLEGE:", college)
+    print("BRANCH:", branch)
+    print("SKILLS:", skills)
+    print("INTERESTS:", interests) 
+    
     resume_file = request.files.get("resume")
     profile_pic = request.files.get("profile_pic")
 
@@ -161,13 +168,13 @@ def save_profile():
         INSERT INTO profiles (email, name, college, branch, skills, interests, resume, profile_pic)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(email) DO UPDATE SET
-            name=excluded.name,
-            college=excluded.college,
-            branch=excluded.branch,
-            skills=excluded.skills,
-            interests=excluded.interests,
-            resume=excluded.resume,
-            profile_pic=excluded.profile_pic
+            name=COALESCE(excluded.name, profiles.name),
+            college=COALESCE(excluded.college, profiles.college),
+            branch=COALESCE(excluded.branch, profiles.branch),
+            skills=COALESCE(excluded.skills, profiles.skills),
+            interests=COALESCE(excluded.interests, profiles.interests),
+            resume=COALESCE(excluded.resume, profiles.resume),
+            profile_pic=COALESCE(excluded.profile_pic, profiles.profile_pic)
     """, (email, name, college, branch, skills, interests, resume_path, profile_pic_path))
 
     conn.commit()
