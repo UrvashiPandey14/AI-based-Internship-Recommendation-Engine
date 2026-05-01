@@ -4,3 +4,4 @@ flask-bcrypt
 pandas
 scikit-learn
 gunicorn
+sentence-transformers
